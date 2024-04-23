@@ -1,7 +1,7 @@
 # simple_acme
 Acme.sh 域名CA证书一键申请脚本,支持证书自动续签
 
-此脚本可以帮助你快速使用acme.sh脚本申请域名的ssl证书，并且可以保存到你想要的位置
+此脚本可以帮助你快速使用[acme.sh](https://github.com/acmesh-official/acme.sh)脚本申请域名的ssl证书，并且可以保存到你想要的位置
 
 # 使用方法
 ```sh
