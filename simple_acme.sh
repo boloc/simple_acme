@@ -13,8 +13,12 @@ Font_color_suffix="\033[0m"
 
 # acme存在目录
 acme_dir=''
+
 # 选择api方式,目前仅支持cloudflare
 options=("cloudflare")
+
+# 支持的CA服务
+ca_server=("letsencrypt" "zerossl")
 
 info_msg() {
     echo -e "${Green_font_prefix}$1${Font_color_suffix}"
@@ -40,17 +44,23 @@ pre_check() {
         exit 1
     fi
 
+    # 临时创建一个目录以检查是否有写权限
+    if ! (mkdir -p "/home/temp_test_dir" 2>/dev/null && rmdir "/home/temp_test_dir"); then
+        echo "当前脚本未有写权限,请尝试以root权限执行此脚本"
+        exit 1
+    fi
+
     # 根据不同的发行版安装 socat
     case "$OS" in
     "Ubuntu" | "Debian")
-        if ! command -v socat &> /dev/null; then
+        if ! command -v socat &>/dev/null; then
             # echo "socat未安装，正在安装..."
             sudo apt update
             sudo apt install -y socat
         fi
         ;;
     "CentOS")
-        if ! command -v socat &> /dev/null; then
+        if ! command -v socat &>/dev/null; then
             # echo "socat未安装，正在安装..."
             sudo yum update -y
             sudo yum install -y socat
@@ -63,10 +73,14 @@ pre_check() {
     esac
 }
 
+acme_dir=''
 install_acme() {
     acme_dir=$(find / -type d -name ".acme.sh" 2>/dev/null)
     if [ -n "$acme_dir" ]; then
-        echo $(warning_msg "检查到acme.sh已经存在,跳过本此安装。")
+        # echo $(warning_msg "检查到acme.sh已经存在,跳过本此安装。")
+        echo $(warning_msg "检查到acme.sh已经存在,将自动更新...")
+        cd $acme_dir
+        ./acme.sh --upgrade --auto-upgrade
     else
         echo $(warning_msg "acme.sh不存在,将进行安装...")
         # 执行 acme.sh 安装脚本
@@ -95,31 +109,36 @@ get_non_empty_input() {
 }
 
 # 定义选项列表
-apply_type=""
+apply_type=''
 choose_api_type() {
-    while true; do
-        echo "请选择调用的api申请方式(回车默认:cloudflare):"
-        for option in "${options[@]}"; do
-            echo "$option" # 列出循环值
-        done
-        read choice
+    # 默认选项 cloudflare
+    default_choice=${options[0]}
 
-        case $choice in
-        "")
-            echo $(info_msg "已选中:cloudfalre")
-            apply_type='cloudflare'
-            break
-            ;;
-        "cloudfalre")
-            echo $(info_msg "已选中:$choice")
-            apply_type=$choice
-            break
-            ;;
-        *)
-            echo $(error_msg "输入有误，请重试")
-            ;;
-        esac
+    echo "请选择调用的api申请方式:"
+    # 使用循环动态输出选项
+    for i in "${!options[@]}"; do
+        echo "$((i + 1))) ${options[$i]}"
     done
+
+    # 读取用户输入
+    read -p "请输入选项编号 (回车默认: $default_choice): " choice
+
+    case $choice in
+    [1])
+        apply_type="${options[$((choice - 1))]}"
+        echo $(info_msg "当前选择: $apply_type")
+        ;;
+    "")
+        # 如果用户按回车
+        apply_type=$default_choice
+        echo $(info_msg "当前选择: $apply_type")
+        ;;
+    *)
+        # 如果输入了无效的值
+        echo $(error_msg "输入有误，已选择默认: $default_choice")
+        apply_type=$default_choice
+        ;;
+    esac
 }
 
 # 配置Cloudflare局部令牌
@@ -151,6 +170,7 @@ apply_by_type() {
 }
 
 pending_domains() {
+
     while true; do
         read -p "请输入你申请证书的域名 (多个域名以空格隔开 例:example.com *.example.com): " domain_names
         if [ -z "$domain_names" ]; then
@@ -195,12 +215,77 @@ pending_domains() {
         # 输入都合法，退出循环
         break
     done
+
+}
+
+# 配置ZeroSSL配置
+zerossl_action() {
+    # 获取 EAB KID
+    EAB_KID=$(get_non_empty_input "请输入从ZeroSSL中获取到的 EAB KID 的值")
+    # 获取 EAB HMAC Key
+    EAB_HMAC_KEY=$(get_non_empty_input "请输入从ZeroSSL中获取到的 EAB HMAC KEY 的值")
+
+    # 导出环境变量
+    export EAB_KID
+    export EAB_HMAC_KEY
+
+    echo $(info_msg "已成功设置环境变量：")
+    echo "EAB_KID: $EAB_KID"
+    echo "EAB_HMAC_KEY: $EAB_HMAC_KEY"
+}
+
+# 选择CA机构服务
+ApplyServer=''
+choose_ca_server() {
+    # 默认选项 letsencrypt
+    default_choice=${ca_server[0]}
+
+    echo "请选择调用的 CA 方式:"
+    # 使用循环动态输出选项
+    for i in "${!ca_server[@]}"; do
+        echo "$((i + 1))) ${ca_server[$i]}"
+    done
+
+    # 读取用户输入
+    read -p "请输入选项编号 (回车默认: $default_choice): " choice
+
+    case $choice in
+    [1-2])
+        server="${ca_server[$((choice - 1))]}"
+        echo $(info_msg "当前选择: $server")
+        ;;
+    "")
+        # 如果用户按回车
+        server=$default_choice
+        echo $(info_msg "当前选择: $server")
+        ;;
+    *)
+        # 如果输入了无效的值
+        echo $(error_msg "输入有误，已选择默认: $default_choice")
+        server=$default_choice
+        ;;
+    esac
+
+    # 执行zerossl需要的额外操作
+    if [ $server = 'zerossl' ]; then
+        zerossl_action
+    fi
+    ApplyServer=$server
 }
 
 build_acme() {
+    echo $(info_msg "执行签发证书......")
+
     cd $acme_dir
     # 切换默认证书签发的CA机构
-    ./acme.sh --set-default-ca --server letsencrypt
+    ./acme.sh --set-default-ca --server $ApplyServer
+    # echo "./acme.sh --set-default-ca --server $ApplyServer"
+
+    # ZeroSSL需要配置相关参数
+    if [ $ApplyServer = 'zerossl' ]; then
+        ./acme.sh --register-account --server zerossl --eab-kid $EAB_KID --eab-hmac-key $EAB_HMAC_KEY
+        # echo "./acme.sh  --register-account  --server zerossl  --eab-kid $EAB_KID  --eab-hmac-key  $EAB_HMAC_KEY"
+    fi
 
     # 构建命令
     acme_command="./acme.sh"
@@ -208,7 +293,7 @@ build_acme() {
         acme_command+=" -d $domain"
     done
     acme_command+=" --issue --dns dns_cf -k ec-256  --log --dnssleep 30 "
-    # echo $acme_command
+
     # 执行命令
     eval "$acme_command"
 
@@ -236,6 +321,8 @@ choose_api_type
 apply_by_type
 # 域名填写
 pending_domains
+# 选择CA机构服务
+choose_ca_server
 # 构建acme执行
 build_acme
 
