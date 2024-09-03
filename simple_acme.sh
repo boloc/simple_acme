@@ -15,7 +15,7 @@ Font_color_suffix="\033[0m"
 acme_dir=''
 
 # 选择api方式,目前仅支持cloudflare
-options=("cloudflare")
+options=("cloudflare" "aliyun")
 
 # 支持的CA服务
 ca_server=("letsencrypt" "zerossl")
@@ -33,6 +33,29 @@ warning_msg() {
 error_msg() {
     echo -e "${Red_font_prefix}$1${Font_color_suffix}"
     return 0
+}
+
+update_script() {
+    REMOTE_URL="https://cdn.jsdelivr.net/gh/boloc/simple_acme/simple_acme.sh"
+
+    # 下载远程文件到临时文件
+    TEMP_FILE=$(mktemp)
+    curl -s -o "$TEMP_FILE" "$REMOTE_URL"
+
+    if ! diff -q "$0" "$TEMP_FILE" > /dev/null; then
+        echo $(info_msg "检测到脚本更新,正在更新新版本...")
+        # 如果不同，覆盖本地文件
+        mv "$TEMP_FILE" "$0"
+        # 赋权
+        chmod +x "$0"
+        echo $(info_msg "更新完成")
+        # 重新执行更新后的脚本
+        source "$0"
+    else
+        # echo "没有检测到更新"
+        # 删除临时文件
+        rm "$TEMP_FILE"
+    fi
 }
 
 pre_check() {
@@ -124,7 +147,7 @@ choose_api_type() {
     read -p "请输入选项编号 (回车默认: $default_choice): " choice
 
     case $choice in
-    [1])
+    [1-2])
         apply_type="${options[$((choice - 1))]}"
         echo $(info_msg "当前选择: $apply_type")
         ;;
@@ -161,10 +184,29 @@ cloudflare_action() {
     echo "CF_Zone_ID: $CF_Zone_ID"
 }
 
+# 配置Aliyun局部令牌
+aliyun_action() {
+    # 获取 AccessKey ID
+    Ali_Key=$(get_non_empty_input "请输入 AccessKey ID 的值")
+    # 获取 AccessKey Secret
+    Ali_Secret=$(get_non_empty_input "请输入 AccessKey Secret 的值")
+
+    # 导出环境变量
+    export Ali_Key
+    export Ali_Secret
+
+    echo $(info_msg "已成功设置环境变量：")
+    echo "Ali_Key: $Ali_Key"
+    echo "Ali_Secret: $Ali_Secret"
+}
+
 apply_by_type() {
     case $apply_type in
     "cloudflare")
         cloudflare_action
+        ;;
+    "aliyun")
+        aliyun_action
         ;;
     esac
 }
@@ -292,7 +334,14 @@ build_acme() {
     for domain in "${domains_array[@]}"; do
         acme_command+=" -d $domain"
     done
-    acme_command+=" --issue --dns dns_cf -k ec-256  --log --dnssleep 30 "
+
+    # DNS 验证类型
+    dnsType='dns_cf'
+    if [ $apply_type = 'aliyun' ]; then
+        dnsType='dns_ali'
+    fi
+
+    acme_command+=" --issue --dns $dnsType -k ec-256  --log --dnssleep 30 "
 
     # 执行命令
     eval "$acme_command"
@@ -311,6 +360,8 @@ build_acme() {
     eval "$installcert_command"
 }
 
+# 更新脚本
+update_script
 # 系统检测 && 前置准备
 pre_check
 # 安装acme
@@ -325,5 +376,4 @@ pending_domains
 choose_ca_server
 # 构建acme执行
 build_acme
-
 exit 0
