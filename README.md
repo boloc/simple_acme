@@ -19,7 +19,7 @@ Acme.sh 域名CA证书一键申请脚本,支持证书自动续签
 wget -N https://cdn.jsdelivr.net/gh/boloc/simple_acme/simple_acme.sh && chmod +x simple_acme.sh && ./simple_acme.sh
 ```
 
-> 如对你有帮助麻烦star支持一下，目前暂时支持`Cloudflare`方式申请，后续考虑增加其他类型以及完善此脚本更多功能
+> 如对你有帮助麻烦star支持一下，后续考虑增加其他类型以及完善此脚本更多功能
 > 如遇到任何问题请提issue
 
 ## 简易运行示意图
