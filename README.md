@@ -9,9 +9,9 @@ Acme.sh 域名CA证书一键申请脚本,支持证书自动续签
 * 通配符证书支持
 * ECC 证书, 多域 ECC 证书支持
 
- ***支持的DNS认证方式 : Cloudflare***
+ ***目前支持的DNS认证方式 : Cloudflare, Aliyun***
 
- ***支持的CA : ZeroSSL, Letsencrypt***
+ ***目前支持的CA : ZeroSSL, Letsencrypt***
 
 ## 使用方法
 
@@ -28,14 +28,25 @@ wget -N https://cdn.jsdelivr.net/gh/boloc/simple_acme/simple_acme.sh && chmod +x
 
 ## 支持的DNS方式相关使用说明
 
+### Cloudflare
+
 1. ***登录[Cloudflare](https://dash.cloudflare.com/profile/api-tokens), 点击`Create Token(创建令牌)`, 选择`Edit zone DNS(编辑区域 DNS)`, 点击`Use template(使用模板)`, 点击`Continue to summary(继续以显示摘要)`, 点击`Create Token(创建令牌)`***
 ![cf1](./img/cf1.png)
 
 2. 复制令牌以备使用(`CF_TOKEN`)
 ![cf2](./img/cf2.png)
 
-3.复制`CF_Account_ID` 以及 `CF_Zone_ID` 以备使用
+3.复制`CF_Account_ID` 以及 `CF_Zone_ID` 以备脚本中使用
 ![cf3](./img/cf3.png)
+
+### Aliyun
+
+1. 使用[阿里云](https://www.aliyun.com)方式申请证书，必须将域名解析至阿里云中才可正常执行
+![aliyun](./img/aliyun.png)
+
+2. 复制`AccessKey ID` 以及 `AccessKey Secret` 以备脚本中使用
+![aliyun2](./img/aliyun2.png)
+![aliyun3](./img/aliyun3.png)
 
 ## 支持的CA证书相关使用说明
 

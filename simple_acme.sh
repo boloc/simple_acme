@@ -42,18 +42,26 @@ update_script() {
     TEMP_FILE=$(mktemp)
     curl -s -o "$TEMP_FILE" "$REMOTE_URL"
 
-    if ! diff -q "$0" "$TEMP_FILE" > /dev/null; then
-        echo $(info_msg "检测到脚本更新,正在更新新版本...")
-        # 如果不同，覆盖本地文件
-        mv "$TEMP_FILE" "$0"
-        # 赋权
-        chmod +x "$0"
-        echo $(info_msg "更新完成")
-        # 重新执行更新后的脚本
-        source "$0"
+    # 检查临时文件是否非空
+    if [[ -s "$TEMP_FILE" ]]; then
+        if ! diff -q "$0" "$TEMP_FILE" > /dev/null; then
+            echo $(info_msg "检测到脚本更新,正在更新新版本...")
+            # 将下载的内容移动到新的文件中
+            NEW_FILE="${0}.new"
+            mv "$TEMP_FILE" "$NEW_FILE"
+            # 赋予执行权限
+            chmod +x "$NEW_FILE"
+            # 替换当前脚本
+            mv "$NEW_FILE" "$0"
+            echo $(info_msg "更新完成")
+            # 重新执行更新后的脚本
+            source "$0"
+        else
+            # 没有检测到更新，删除临时文件
+            rm "$TEMP_FILE"
+        fi
     else
-        # echo "没有检测到更新"
-        # 删除临时文件
+        echo $(warning_msg "下载出错,保留旧版本继续执行")
         rm "$TEMP_FILE"
     fi
 }
