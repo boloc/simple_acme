@@ -109,7 +109,7 @@ install_acme() {
     acme_dir=$(find / -type d -name ".acme.sh" 2>/dev/null)
     if [ -n "$acme_dir" ]; then
         # echo $(warning_msg "检查到acme.sh已经存在,跳过本此安装。")
-        echo $(warning_msg "检查到acme.sh已经存在,将自动更新...")
+        echo $(warning_msg "检测到acme.sh已经存在...")
         cd $acme_dir
         ./acme.sh --upgrade --auto-upgrade
     else
