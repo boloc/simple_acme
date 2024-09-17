@@ -360,8 +360,17 @@ build_acme() {
     filename='certificate'
     for domain in "${domains_array[@]}"; do
         installcert_command+=" -d $domain"
-        if [ "$filename" = "certificate" ]; then
-            filename="$domain"
+        # 避免*成为文件名
+        if [[ "$domain" == \*.?* ]]; then
+            # Extract the main domain from wildcard domain
+            main_domain="${domain#*.}"
+            if [ "$filename" = "certificate" ]; then
+                filename="$main_domain"
+            fi
+        else
+            if [ "$filename" = "certificate" ]; then
+                filename="$domain"
+            fi
         fi
     done
     installcert_command+=" --fullchain-file $ssl_dir/$filename.crt --key-file $ssl_dir/$filename.key"
