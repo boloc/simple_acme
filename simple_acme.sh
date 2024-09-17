@@ -104,7 +104,6 @@ pre_check() {
     esac
 }
 
-acme_dir=''
 install_acme() {
     acme_dir=$(find / -type d -name ".acme.sh" 2>/dev/null)
     if [ -n "$acme_dir" ]; then
@@ -121,6 +120,8 @@ install_acme() {
             echo "安装失败：可能是由于权限问题。请尝试以管理员权限或适当的权限重新运行脚本。"
             exit 1
         fi
+        # 重新寻找acme目录
+        acme_dir=$(find / -type d -name ".acme.sh" 2>/dev/null)
     fi
 }
 
