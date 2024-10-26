@@ -114,12 +114,12 @@ install_acme() {
     else
         echo $(warning_msg "acme.sh不存在,将进行安装...")
         # 执行 acme.sh 安装脚本
-        # wget -qO- https://get.acme.sh | bash
-        git clone --depth 1 https://github.com/acmesh-official/acme.sh.git .acme.sh
+        wget -qO- https://ghp.ci/https://raw.githubusercontent.com/boloc/simple_acme/main/get.acme.sh | bash
+        # git clone --depth 1 https://github.com/acmesh-official/acme.sh.git .acme.sh
 
         # 检查安装是否成功
         if [ $? -ne 0 ]; then
-            echo "安装失败：可能是由于权限问题。请尝试以管理员权限或适当的权限重新运行脚本。"
+            echo "安装失败：可能是由于权限或者网络问题。请尝试重新运行脚本。"
             exit 1
         fi
         # 重新寻找acme目录
