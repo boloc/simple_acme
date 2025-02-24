@@ -36,7 +36,7 @@ error_msg() {
 }
 
 update_script() {
-    REMOTE_URL="https://ghp.ci/https://raw.githubusercontent.com/boloc/simple_acme/main/simple_acme.sh"
+    REMOTE_URL="https://gh-proxy.com/github.com/boloc/simple_acme/blob/main/simple_acme.sh"
 
     # 下载远程文件到临时文件
     TEMP_FILE=$(mktemp)
