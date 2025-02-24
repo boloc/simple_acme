@@ -36,7 +36,7 @@ error_msg() {
 }
 
 update_script() {
-    REMOTE_URL="https://gh-proxy.com/github.com/boloc/simple_acme/blob/main/simple_acme.sh"
+    REMOTE_URL="https://raw.githubusercontent.com/boloc/simple_acme/main/simple_acme.sh"
 
     # 下载远程文件到临时文件
     TEMP_FILE=$(mktemp)
@@ -114,7 +114,7 @@ install_acme() {
     else
         echo $(warning_msg "acme.sh不存在,将进行安装...")
         # 执行 acme.sh 安装脚本
-        wget -qO- https://gh-proxy.com/github.com/boloc/simple_acme/blob/main/get.acme.sh | bash
+        wget -qO- https://raw.githubusercontent.com/boloc/simple_acme/main/get.acme.sh | bash
         # git clone --depth 1 https://github.com/acmesh-official/acme.sh.git .acme.sh
 
         # 检查安装是否成功
