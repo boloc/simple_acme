@@ -28,7 +28,7 @@ if [ "$_email" ]; then
     _email="--$(echo "$_email" | tr '=' ' ')"
 fi
 
-_url="https://ghp.ci/https://raw.githubusercontent.com/acmesh-official/acme.sh/$BRANCH/acme.sh"
+_url="https://raw.githubusercontent.com/acmesh-official/acme.sh/$BRANCH/acme.sh"
 
 _get=""
 
