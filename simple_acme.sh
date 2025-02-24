@@ -114,7 +114,7 @@ install_acme() {
     else
         echo $(warning_msg "acme.sh不存在,将进行安装...")
         # 执行 acme.sh 安装脚本
-        wget -qO- https://ghp.ci/https://raw.githubusercontent.com/boloc/simple_acme/main/get.acme.sh | bash
+        wget -qO- https://gh-proxy.com/github.com/boloc/simple_acme/blob/main/get.acme.sh | bash
         # git clone --depth 1 https://github.com/acmesh-official/acme.sh.git .acme.sh
 
         # 检查安装是否成功

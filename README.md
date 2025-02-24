@@ -18,7 +18,7 @@ Acme.sh 域名CA证书一键申请脚本,支持证书自动续签
 ```sh
 wget -O simple_acme.sh https://cdn.jsdelivr.net/gh/boloc/simple_acme/simple_acme.sh && chmod +x simple_acme.sh && ./simple_acme.sh
 # 或国内代理
-wget -O simple_acme.sh https://ghp.ci/https://raw.githubusercontent.com/boloc/simple_acme/main/simple_acme.sh && chmod +x simple_acme.sh && ./simple_acme.sh
+wget -O simple_acme.sh https://gh-proxy.com/github.com/boloc/simple_acme/blob/main/simple_acme.sh && chmod +x simple_acme.sh && ./simple_acme.sh
 ```
 
 > 如对你有帮助麻烦star支持一下，后续考虑增加其他类型以及完善此脚本更多功能
