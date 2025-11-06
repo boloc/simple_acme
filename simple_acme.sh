@@ -11,8 +11,6 @@ Green_font_prefix="\033[32m"
 Yellow_font_prefix="\033[33m"
 Font_color_suffix="\033[0m"
 
-# acme存在目录
-acme_dir=''
 
 # 选择api方式,目前仅支持cloudflare
 options=("cloudflare" "aliyun")
@@ -67,62 +65,192 @@ update_script() {
 }
 
 pre_check() {
+    echo $(info_msg "开始系统环境检查...")
+
+    # 检查操作系统
     OS=$(cat /etc/os-release | grep -o -E "Debian|Ubuntu|CentOS" | head -n 1)
     if [[ $OS == "Debian" || $OS == "Ubuntu" || $OS == "CentOS" ]]; then
-        echo $(warning_msg "检测到你的系统是${OS}")
+        echo $(info_msg "✓ 操作系统: $OS")
     else
-        echo $(error_msg "很抱歉,你的系统暂不受支持")
+        echo $(error_msg "✗ 不支持的操作系统，仅支持 Debian/Ubuntu/CentOS")
         exit 1
     fi
 
-    # 临时创建一个目录以检查是否有写权限
-    if ! (mkdir -p "/home/temp_test_dir" 2>/dev/null && rmdir "/home/temp_test_dir"); then
-        echo "当前脚本未有写权限,请尝试以root权限执行此脚本"
+    # 检查用户权限
+    USER_HOME=$(eval echo ~$(whoami))
+    if ! (mkdir -p "$USER_HOME/temp_test_dir" 2>/dev/null && rmdir "$USER_HOME/temp_test_dir"); then
+        echo $(error_msg "✗ 当前用户没有写权限，请检查权限设置")
         exit 1
     fi
+    echo $(info_msg "✓ 用户权限: $(whoami)")
 
-    # 根据不同的发行版安装 socat
-    case "$OS" in
-    "Ubuntu" | "Debian")
-        if ! command -v socat &>/dev/null; then
-            # echo "socat未安装，正在安装..."
-            sudo apt update
-            sudo apt install -y socat
+    # 检查系统依赖软件
+    echo $(info_msg "检查必需软件...")
+    local required_tools=("curl" "openssl" "cron" "socat")
+    local missing_tools=()
+
+    for tool in "${required_tools[@]}"; do
+        if ! command -v "$tool" &>/dev/null; then
+            missing_tools+=("$tool")
         fi
-        ;;
-    "CentOS")
-        if ! command -v socat &>/dev/null; then
-            # echo "socat未安装，正在安装..."
-            sudo yum update -y
-            sudo yum install -y socat
+    done
+
+    # 如果有缺失的工具，自动安装
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        echo $(warning_msg "缺少依赖: ${missing_tools[*]}，正在安装...")
+
+        case "$OS" in
+        "Ubuntu" | "Debian")
+            local apt_packages=""
+            for tool in "${missing_tools[@]}"; do
+                case "$tool" in
+                    "cron") apt_packages+=" cron" ;;
+                    "curl") apt_packages+=" curl" ;;
+                    "openssl") apt_packages+=" openssl" ;;
+                    "socat") apt_packages+=" socat" ;;
+                esac
+            done
+
+            if [ -n "$apt_packages" ]; then
+                apt update && apt install -y $apt_packages
+            fi
+            ;;
+
+        "CentOS")
+            local yum_packages=""
+            for tool in "${missing_tools[@]}"; do
+                case "$tool" in
+                    "cron") yum_packages+=" cronie" ;;
+                    "curl") yum_packages+=" curl" ;;
+                    "openssl") yum_packages+=" openssl" ;;
+                    "socat") yum_packages+=" socat" ;;
+                esac
+            done
+
+            if [ -n "$yum_packages" ]; then
+                yum update -y && yum install -y $yum_packages
+            fi
+            ;;
+        esac
+
+        # 验证安装结果
+        local still_missing=()
+        for tool in "${missing_tools[@]}"; do
+            if ! command -v "$tool" &>/dev/null; then
+                still_missing+=("$tool")
+            fi
+        done
+
+        if [ ${#still_missing[@]} -gt 0 ]; then
+            echo $(error_msg "✗ 以下软件安装失败: ${still_missing[*]}")
+            echo $(error_msg "请手动安装后重新运行脚本")
+            exit 1
         fi
-        ;;
-    *)
-        echo "很抱歉，你的系统暂不受支持"
-        exit 1
-        ;;
-    esac
+    fi
+    echo $(info_msg "✓ 必需软件: curl, openssl, cron, socat")
+
+    echo $(info_msg "========================================")
+    echo $(info_msg "系统环境检查完成！")
+    echo $(info_msg "✓ 系统: $OS")
+    echo $(info_msg "✓ 用户: $(whoami)")
+    echo $(info_msg "✓ 依赖: 已安装")
+    echo $(info_msg "========================================")
 }
 
 install_acme() {
-    acme_dir=$(find / -type d -name ".acme.sh" 2>/dev/null)
-    if [ -n "$acme_dir" ]; then
-        # echo $(warning_msg "检查到acme.sh已经存在,跳过本此安装。")
-        echo $(warning_msg "检测到acme.sh已经存在...")
-        cd $acme_dir
+    # 获取当前用户信息
+    CURRENT_USER=$(whoami)
+    USER_HOME=$(eval echo ~$CURRENT_USER)
+
+    # 检查 acme.sh 是否已经在 PATH 中可用
+    if command -v acme.sh &>/dev/null; then
+        echo $(info_msg "检测到 acme.sh 已安装并可直接使用")
+        acme.sh --upgrade --auto-upgrade
+        return 0
+    fi
+
+    # 设置用户相关的路径
+    ACME_HOME="$USER_HOME/.acme.sh"
+    SHELL_RC="$USER_HOME/.bashrc"
+
+    # 如果是 zsh，使用 .zshrc
+    if [ "$SHELL" = "/usr/bin/zsh" ] || [ "$SHELL" = "/bin/zsh" ]; then
+        SHELL_RC="$USER_HOME/.zshrc"
+    fi
+
+    echo $(info_msg "当前用户: $CURRENT_USER")
+    echo $(info_msg "用户主目录: $USER_HOME")
+    echo $(info_msg "Shell 配置文件: $SHELL_RC")
+
+    # 检查用户目录下是否存在 .acme.sh
+    if [ -d "$ACME_HOME" ]; then
+        echo $(warning_msg "检测到 acme.sh 已存在于 $ACME_HOME...")
+        cd "$ACME_HOME"
         ./acme.sh --upgrade --auto-upgrade
+
+        # 添加到 PATH
+        if ! grep -q "$ACME_HOME" "$SHELL_RC" 2>/dev/null; then
+            echo "export PATH=\"$ACME_HOME:\$PATH\"" >> "$SHELL_RC"
+            echo $(info_msg "已将 acme.sh 添加到 $SHELL_RC")
+        fi
+
+        # 如果是 root 用户，创建软链接到 /usr/local/bin
+        if [ "$CURRENT_USER" = "root" ] && [ ! -f "/usr/local/bin/acme.sh" ]; then
+            ln -sf "$ACME_HOME/acme.sh" /usr/local/bin/acme.sh
+            echo $(info_msg "已创建 acme.sh 软链接到 /usr/local/bin")
+        fi
+
+        # 如果是普通用户，创建软链接到用户的 bin 目录
+        if [ "$CURRENT_USER" != "root" ]; then
+            mkdir -p "$USER_HOME/.local/bin"
+            if [ ! -f "$USER_HOME/.local/bin/acme.sh" ]; then
+                ln -sf "$ACME_HOME/acme.sh" "$USER_HOME/.local/bin/acme.sh"
+                echo $(info_msg "已创建 acme.sh 软链接到 $USER_HOME/.local/bin")
+            fi
+
+            # 添加 ~/.local/bin 到 PATH
+            if ! grep -q "$USER_HOME/.local/bin" "$SHELL_RC" 2>/dev/null; then
+                echo "export PATH=\"$USER_HOME/.local/bin:\$PATH\"" >> "$SHELL_RC"
+                echo $(info_msg "已将 ~/.local/bin 添加到 PATH")
+            fi
+        fi
     else
-        echo $(warning_msg "acme.sh不存在,将进行安装...")
-        # 执行 acme.sh 安装脚本
-        wget -qO- https://raw.githubusercontent.com/boloc/simple_acme/main/get.acme.sh | sh -s
+        echo $(warning_msg "acme.sh 不存在，将安装到 $ACME_HOME...")
+
+        # 安装到用户目录
+        cd "$USER_HOME"
+        curl https://get.acme.sh | sh -s email=my@example.com
 
         # 检查安装是否成功
         if [ $? -ne 0 ]; then
-            echo "安装失败：可能是由于权限或者网络问题。请尝试重新运行脚本。"
+            echo $(error_msg "安装失败：可能是由于权限或者网络问题。请尝试重新运行脚本。")
             exit 1
         fi
-        # 重新寻找acme目录
-        acme_dir=$(find / -type d -name ".acme.sh" 2>/dev/null)
+
+        # 添加到 PATH
+        if ! grep -q "$ACME_HOME" "$SHELL_RC" 2>/dev/null; then
+            echo "export PATH=\"$ACME_HOME:\$PATH\"" >> "$SHELL_RC"
+            echo $(info_msg "已将 acme.sh 添加到 $SHELL_RC")
+        fi
+
+        # 如果是 root 用户，创建软链接到 /usr/local/bin
+        if [ "$CURRENT_USER" = "root" ]; then
+            ln -sf "$ACME_HOME/acme.sh" /usr/local/bin/acme.sh
+            echo $(info_msg "已创建 acme.sh 软链接到 /usr/local/bin")
+        else
+            # 如果是普通用户，创建软链接到用户的 bin 目录
+            mkdir -p "$USER_HOME/.local/bin"
+            ln -sf "$ACME_HOME/acme.sh" "$USER_HOME/.local/bin/acme.sh"
+            echo $(info_msg "已创建 acme.sh 软链接到 $USER_HOME/.local/bin")
+
+            # 添加 ~/.local/bin 到 PATH
+            if ! grep -q "$USER_HOME/.local/bin" "$SHELL_RC" 2>/dev/null; then
+                echo "export PATH=\"$USER_HOME/.local/bin:\$PATH\"" >> "$SHELL_RC"
+                echo $(info_msg "已将 ~/.local/bin 添加到 PATH")
+            fi
+        fi
+
+        echo $(info_msg "acme.sh 安装完成！请运行 'source $SHELL_RC' 或重新登录以使 PATH 生效")
     fi
 }
 
@@ -222,7 +350,6 @@ apply_by_type() {
 }
 
 pending_domains() {
-
     while true; do
         read -p "请输入你申请证书的域名 (多个域名以空格隔开 例:example.com *.example.com): " domain_names
         if [ -z "$domain_names" ]; then
@@ -272,18 +399,36 @@ pending_domains() {
 
 # 配置ZeroSSL配置
 zerossl_action() {
-    # 获取 EAB KID
-    EAB_KID=$(get_non_empty_input "请输入从ZeroSSL中获取到的 EAB KID 的值")
-    # 获取 EAB HMAC Key
-    EAB_HMAC_KEY=$(get_non_empty_input "请输入从ZeroSSL中获取到的 EAB HMAC KEY 的值")
+    echo $(info_msg "ZeroSSL 配置选项：")
+    echo "1) 使用 EAB 凭据（可在 ZeroSSL 控制台管理证书）"
+    echo "2) 不使用 EAB 凭据（仅申请证书，无法在控制台管理）"
 
-    # 导出环境变量
-    export EAB_KID
-    export EAB_HMAC_KEY
+    read -p "请选择 (1/2，默认为2): " eab_choice
 
-    echo $(info_msg "已成功设置环境变量：")
-    echo "EAB_KID: $EAB_KID"
-    echo "EAB_HMAC_KEY: $EAB_HMAC_KEY"
+    case $eab_choice in
+    1)
+        echo $(info_msg "请从 ZeroSSL 开发者页面获取 EAB 凭据")
+        # 获取 EAB KID
+        EAB_KID=$(get_non_empty_input "请输入 EAB KID")
+        # 获取 EAB HMAC Key
+        EAB_HMAC_KEY=$(get_non_empty_input "请输入 EAB HMAC KEY")
+
+        # 导出环境变量
+        export EAB_KID
+        export EAB_HMAC_KEY
+        USE_EAB=true
+
+        echo $(info_msg "已设置 EAB 凭据，证书将关联到您的 ZeroSSL 账户")
+        ;;
+    2|"")
+        echo $(info_msg "将不使用 EAB 凭据，直接申请证书")
+        USE_EAB=false
+        ;;
+    *)
+        echo $(warning_msg "无效选择，将不使用 EAB 凭据")
+        USE_EAB=false
+        ;;
+    esac
 }
 
 # 选择CA机构服务
@@ -328,19 +473,22 @@ choose_ca_server() {
 build_acme() {
     echo $(info_msg "执行签发证书......")
 
-    cd $acme_dir
     # 切换默认证书签发的CA机构
-    ./acme.sh --set-default-ca --server $ApplyServer
-    # echo "./acme.sh --set-default-ca --server zerossl
+    acme.sh --set-default-ca --server $ApplyServer
 
     # ZeroSSL需要配置相关参数
     if [ $ApplyServer = 'zerossl' ]; then
-        ./acme.sh --register-account --server zerossl --eab-kid $EAB_KID --eab-hmac-key $EAB_HMAC_KEY
-        # echo "./acme.sh  --register-account  --server zerossl  --eab-kid $EAB_KID  --eab-hmac-key  $EAB_HMAC_KEY"
+        if [ "$USE_EAB" = "true" ]; then
+            echo $(info_msg "使用 EAB 凭据注册 ZeroSSL 账户...")
+            acme.sh --register-account --server zerossl --eab-kid $EAB_KID --eab-hmac-key $EAB_HMAC_KEY
+        else
+            echo $(info_msg "使用 ZeroSSL 申请证书（无 EAB 凭据）...")
+            # 不需要特殊的账户注册，acme.sh 会自动处理
+        fi
     fi
 
     # 构建命令
-    acme_command="./acme.sh"
+    acme_command="acme.sh"
     for domain in "${domains_array[@]}"; do
         acme_command+=" -d $domain"
     done
@@ -351,13 +499,13 @@ build_acme() {
         dnsType='dns_ali'
     fi
 
-    acme_command+=" --issue --dns $dnsType -k ec-256  --log --dnssleep 30 "
+    acme_command+=" --issue --dns $dnsType -k ec-256  --log  "
 
     # 执行命令
     eval "$acme_command"
 
     # 安装证书到指定位置(至此SSL证书步骤配置结束)
-    installcert_command="./acme.sh --installcert --ecc"
+    installcert_command="acme.sh --install-cert --ecc"
     filename='certificate'
     for domain in "${domains_array[@]}"; do
         installcert_command+=" -d $domain"
@@ -374,9 +522,36 @@ build_acme() {
             fi
         fi
     done
-    installcert_command+=" --fullchain-file $ssl_dir/$filename.crt --key-file $ssl_dir/$filename.key"
-    # echo $installcert_command
+
+    # 定义证书文件路径变量
+    cert_base_path="$ssl_dir/$filename"
+    cert_file="$cert_base_path.crt"                    # 域名证书
+    ca_file="$cert_base_path-ca.pem"                   # CA证书(中间证书)
+    key_file="$cert_base_path.key"                     # 私钥
+    fullchain_file="$cert_base_path-fullchain.crt"     # 完整证书链
+
+    # 构建安装证书命令
+    installcert_command+=" --cert-file $cert_file"
+    installcert_command+=" --ca-file $ca_file"
+    installcert_command+=" --key-file $key_file"
+    installcert_command+=" --fullchain-file $fullchain_file"
+
+    # 执行安装证书命令
     eval "$installcert_command"
+
+    # 显示生成的证书文件信息
+    echo $(info_msg "========================================")
+    echo $(info_msg "证书申请完成！生成的文件如下：")
+    echo $(info_msg "域名证书: $cert_file")
+    echo $(info_msg "CA证书(中间证书): $ca_file")
+    echo $(info_msg "私钥文件: $key_file")
+    echo $(info_msg "完整证书链: $fullchain_file")
+    echo $(info_msg "========================================")
+    echo $(warning_msg "使用说明：")
+    echo $(warning_msg "• nginx 配置使用: $(basename $fullchain_file) + $(basename $key_file)")
+    echo $(warning_msg "• Apache 配置使用: $(basename $fullchain_file) + $(basename $key_file)")
+    echo $(warning_msg "• mobileconfig 签名使用: $(basename $cert_file) + $(basename $key_file) + $(basename $ca_file)")
+    echo $(info_msg "========================================")
 }
 
 # 更新脚本
