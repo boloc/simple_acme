@@ -179,6 +179,34 @@ install_acme() {
     # 检查 acme.sh 是否已经在 PATH 中可用
     if command -v acme.sh &>/dev/null; then
         echo $(info_msg "检测到 acme.sh 已安装并可直接使用")
+
+        # 检查是否使用了禁止的邮箱地址
+        account_email=$(grep "ACCOUNT_EMAIL=" "$USER_HOME/.acme.sh/account.conf" 2>/dev/null | cut -d"'" -f2)
+        ca_email=$(grep "CA_EMAIL=" "$USER_HOME/.acme.sh/ca/acme-v02.api.letsencrypt.org/directory/ca.conf" 2>/dev/null | cut -d"'" -f2)
+
+        if [[ "$account_email" =~ @(example\.com|example\.org|example\.net|test\.com)$ ]] || [[ "$ca_email" =~ @(example\.com|example\.org|example\.net|test\.com)$ ]]; then
+            echo $(warning_msg "检测到使用了禁止的邮箱地址")
+            echo $(warning_msg "正在清理配置并重新注册账户...")
+
+            # 生成新的随机邮箱
+            generate_random_email
+
+            # 清理旧的配置文件
+            echo $(info_msg "清理旧的账户配置...")
+            rm -rf "$USER_HOME/.acme.sh/ca/"
+
+            # 更新account.conf中的邮箱
+            if [ -f "$USER_HOME/.acme.sh/account.conf" ]; then
+                sed -i "s/ACCOUNT_EMAIL='.*'/ACCOUNT_EMAIL='$user_email'/" "$USER_HOME/.acme.sh/account.conf"
+            fi
+
+            # 重新注册账户
+            echo $(info_msg "使用新邮箱重新注册账户: $user_email")
+            acme.sh --register-account --accountemail $user_email
+
+            echo $(info_msg "账户已重新注册，邮箱地址: $user_email")
+        fi
+
         acme.sh --upgrade --auto-upgrade
         return 0
     fi
