@@ -33,6 +33,20 @@ error_msg() {
     return 0
 }
 
+# 生成随机邮箱地址
+generate_random_email() {
+    # 生成随机字符串
+    local random_string=$(openssl rand -hex 8)
+    local timestamp=$(date +%s)
+
+    # 使用多个可靠的域名，避免被CA拒绝
+    local domains=("gmail.com" "outlook.com" "hotmail.com" "yahoo.com")
+    local random_domain=${domains[$((RANDOM % ${#domains[@]}))]}
+
+    user_email="acme${timestamp}${random_string}@${random_domain}"
+    echo $(info_msg "自动生成邮箱地址: $user_email")
+}
+
 update_script() {
     REMOTE_URL="https://raw.githubusercontent.com/boloc/simple_acme/main/simple_acme.sh"
 
@@ -219,7 +233,11 @@ install_acme() {
 
         # 安装到用户目录
         cd "$USER_HOME"
-        curl https://get.acme.sh | sh -s email=my@example.com
+
+        # 生成随机邮箱地址
+        generate_random_email
+
+        curl https://get.acme.sh | sh -s email=$user_email
 
         # 检查安装是否成功
         if [ $? -ne 0 ]; then
@@ -351,7 +369,7 @@ apply_by_type() {
 
 pending_domains() {
     while true; do
-        read -p "请输入你申请证书的域名 (多个域名以空格隔开 例:example.com *.example.com): " domain_names
+        read -p "请输入你申请证书的域名 (多个域名以空格隔开 例:yourdomain.com *.yourdomain.com): " domain_names
         if [ -z "$domain_names" ]; then
             echo $(error_msg "域名不能为空，请提供至少一个域名。")
             continue
