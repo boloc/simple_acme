@@ -581,6 +581,7 @@ build_acme() {
     installcert_command+=" --ca-file $ca_file"
     installcert_command+=" --key-file $key_file"
     installcert_command+=" --fullchain-file $fullchain_file"
+    installcert_command+=" --days 60"  # 设置在剩余60天时自动续期
 
     # 执行安装证书命令
     eval "$installcert_command"
